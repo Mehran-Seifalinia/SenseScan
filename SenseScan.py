@@ -50,6 +50,16 @@ except ImportError:
     _PILImage = None
     _HAS_PIL = False
 
+# ExifTags.IFD was introduced in Pillow 9.4.0. Older versions only expose
+# the numeric tags (Exif = 0x8769, GPSInfo = 0x8825). Fall back to the
+# numbers so extraction keeps working on older Pillow.
+if _PILExifTags is not None and hasattr(_PILExifTags, "IFD"):
+    _EXIF_IFD = _PILExifTags.IFD.Exif
+    _GPS_INFO_IFD = _PILExifTags.IFD.GPSInfo
+else:
+    _EXIF_IFD = 0x8769
+    _GPS_INFO_IFD = 0x8825
+
 try:
     from colorama import init as _colorama_init
     _HAS_COLORAMA = True
@@ -1154,8 +1164,8 @@ def extract_image_exif(path: Path) -> dict[str, str]:
             if name not in _META_SKIP:
                 result[name] = _meta_text(value)
         for ifd_id, table, prefix in (
-            (_PILExifTags.IFD.Exif, _PILExifTags.TAGS, ""),
-            (_PILExifTags.IFD.GPSInfo, _PILExifTags.GPSTAGS, "GPS."),
+            (_EXIF_IFD, _PILExifTags.TAGS, ""),
+            (_GPS_INFO_IFD, _PILExifTags.GPSTAGS, "GPS."),
         ):
             try:
                 ifd = exif.get_ifd(ifd_id)
