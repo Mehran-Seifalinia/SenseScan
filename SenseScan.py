@@ -702,11 +702,35 @@ def build_patterns() -> list[PatternSpec]:
             r"""(?=[^}]*?url\s*:\s*[`'"]([^`'"]+)[`'"])"""
             r"""(?=[^}]*?method\s*:\s*[`'"](\w+)[`'"])"""
         ), capture_groups=(1,), method_group=2))
-    add(PatternSpec("api_endpoints_complete", "endpoint_jquery_method",
+    # $.get / $.getJSON / $.post — verb defines the method.
+    add(PatternSpec("api_endpoints_complete", "endpoint_jquery_get",
+        re_compile(r"""\$\.get\s*\(\s*[`'"]([^`'"]+)[`'"]"""),
+        capture_groups=(1,), default_method="GET"))
+    add(PatternSpec("api_endpoints_complete", "endpoint_jquery_getjson",
+        re_compile(r"""\$\.getJSON\s*\(\s*[`'"]([^`'"]+)[`'"]"""),
+        capture_groups=(1,), default_method="GET"))
+    add(PatternSpec("api_endpoints_complete", "endpoint_jquery_post",
+        re_compile(r"""\$\.post\s*\(\s*[`'"]([^`'"]+)[`'"]"""),
+        capture_groups=(1,), default_method="POST"))
+    # $.ajax({url, method}) — order-independent, method optional (GET).
+    add(PatternSpec("api_endpoints_complete", "endpoint_jquery_ajax_object",
         re_compile(
-            r"""\$\.(?:get|post|ajax|getJSON)\s*\(\s*"""
-            r"""(?:\{[^}]*?url\s*:\s*[`'"]([^`'"]+)[`'"]|[`'"]([^`'"]+)[`'"])"""
-        ), capture_groups=(1, 2)))
+            r"""\$\.ajax\s*\(\s*\{"""
+            r"""(?=[^}]*?url\s*:\s*[`'"]([^`'"]+)[`'"])"""
+            r"""(?=[^}]*?method\s*:\s*[`'"](\w+)[`'"])?"""
+        ), capture_groups=(1,), method_group=2, default_method="GET"))
+    # $.ajax('url', {method}) — settings on second argument.
+    add(PatternSpec("api_endpoints_complete", "endpoint_jquery_ajax_url_settings",
+        re_compile(
+            r"""\$\.ajax\s*\(\s*[`'"]([^`'"]+)[`'"]\s*,\s*\{"""
+            r"""(?=[^}]*?method\s*:\s*[`'"](\w+)[`'"])"""
+        ), capture_groups=(1,), method_group=2))
+    # $.ajax('url') or $.ajax('url', {settings without method}) — GET default.
+    add(PatternSpec("api_endpoints_complete", "endpoint_jquery_ajax_url",
+        re_compile(
+            r"""\$\.ajax\s*\(\s*[`'"]([^`'"]+)[`'"]"""
+            r"""(?!\s*,\s*\{[^}]*?method\s*:\s*[`'"])"""
+        ), capture_groups=(1,), default_method="GET"))
     add(PatternSpec("api_endpoints_complete", "endpoint_xhr",
         re_compile(
             r"""\.open\s*\(\s*[`'"]([A-Z]+)[`'"]\s*,\s*[`'"]([^`'"]+)[`'"]"""
@@ -1139,11 +1163,13 @@ def extract_match_value(match: re_Match[str], spec: PatternSpec) -> str | None:
         value = match.group(0).strip()
     if spec.type == "http_url":
         value = value.rstrip(".,:")
-    if spec.method_group and value:
-        try:
-            method = match.group(spec.method_group)
-        except (IndexError, ValueError):
-            method = None
+    if value and (spec.method_group or spec.default_method):
+        method: str | None = None
+        if spec.method_group:
+            try:
+                method = match.group(spec.method_group)
+            except (IndexError, ValueError):
+                method = None
         method = method or spec.default_method
         if method:
             value = f"{method.upper()} {value}"
