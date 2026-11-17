@@ -28,6 +28,7 @@ from sys import (
     stdout as sys_stdout,
     version_info as sys_version_info,
 )
+from textwrap import wrap as text_wrap
 from time import perf_counter as time_perf_counter
 from traceback import format_exc as traceback_format_exc
 from typing import Any, Callable
@@ -1355,6 +1356,7 @@ def ordered_categories(by_cat: dict[str, Any]) -> list[str]:
 
 
 
+
 def render_text(report: ScanReport, verbose_level: int) -> str:
     aggregated = aggregate_findings(report.findings)
     lines: list[str] = []
@@ -1364,72 +1366,74 @@ def render_text(report: ScanReport, verbose_level: int) -> str:
         len(item["occurrences"]) for item in aggregated
     )
 
-    ap("=" * 88)
+    ap("=" * 72)
     ap("  SenseScan | Sensitive Data Report")
-    ap("=" * 88)
-    ap(f"  Files scanned:       {report.scanned_files}")
-    ap(f"  Sensitive findings:  {len(aggregated)}")
-    ap(f"  Total matches:       {total_matches}")
+    ap("=" * 72)
+    ap(f"  Files scanned       : {report.scanned_files}")
+    ap(f"  Unique findings    : {len(aggregated)}")
+    ap(f"  Total matches      : {total_matches}")
+
+    if verbose_level >= 3:
+        ap(f"  Files skipped      : {report.skipped_files}")
+        ap(f"  Scan duration      : {report.duration_sec:.2f}s")
+
+    ap("=" * 72)
 
     if not aggregated:
         ap("")
         ap("  No sensitive data found.")
-        ap("=" * 88)
+        ap("=" * 72)
         return "\n".join(lines)
 
+    by_cat: dict[str, list[dict[str, Any]]] = {}
+
+    for item in aggregated:
+        by_cat.setdefault(item["category"], []).append(item)
+
     ap("")
+    ap("  FINDINGS")
+    ap("-" * 72)
 
-    rows = [
-        (
-            item["category"],
-            item["type"],
-            item["value"],
-            str(len(item["occurrences"])),
-        )
-        for item in aggregated
-    ]
+    for cat in ordered_categories(by_cat):
+        items = by_cat[cat]
 
-    headers = ("CATEGORY", "TYPE", "SENSITIVE DATA", "MATCHES")
-
-    widths = [
-        max(len(headers[i]), *(len(row[i]) for row in rows))
-        for i in range(len(headers))
-    ]
-
-    def separator() -> str:
-        return "+" + "+".join("-" * (w + 2) for w in widths) + "+"
-
-    def table_row(values: tuple[str, ...]) -> str:
-        return (
-            "| "
-            + " | ".join(
-                values[i].ljust(widths[i])
-                for i in range(len(values))
-            )
-            + " |"
-        )
-
-    ap(separator())
-    ap(table_row(headers))
-    ap(separator())
-
-    for row in rows:
-        ap(table_row(row))
-
-    ap(separator())
-
-    if verbose_level >= 3:
         ap("")
-        ap(f"  Duration:       {report.duration_sec:.2f}s")
-        ap(f"  Files skipped:  {report.skipped_files}")
+        ap(f"  [{cat.upper()}]  {len(items)} finding(s)")
+        ap("  " + "-" * 40)
+
+        for item in items:
+            match_count = len(item["occurrences"])
+            match_label = "match" if match_count == 1 else "matches"
+
+            ap(f"    Type    : {item['type']}")
+            ap(f"    Matches : {match_count} {match_label}")
+            ap("    Value   :")
+
+            wrapped = text_wrap(
+                item["value"],
+                width=88,
+                subsequent_indent="              ",
+                break_long_words=True,
+                break_on_hyphens=False,
+            )
+
+            for part in wrapped:
+                ap(f"              {part}")
+
+            ap("")
 
     if verbose_level >= 4 and report.errors:
         ap("")
-        ap("-- ERRORS / DEBUG --")
+        ap("  ERRORS / DEBUG")
+        ap("-" * 72)
+
         for err in report.errors:
             ap(f"  ! {err}")
 
+    ap("=" * 72)
+
     return "\n".join(lines)
+
 
 
 
@@ -1753,15 +1757,17 @@ def main(argv: list[str] | None = None) -> int:
 
         for file_index, file_path in enumerate(files, start=1):
             if verbose == 0:
-                completed = file_index - 1
-                remaining = len(files) - completed
+                processed = file_index - 1
+                remaining = len(files) - processed
+
+                progress = (
+                    f"  Progress: {processed}/{len(files)}"
+                    f" | Scanned: {report.scanned_files}"
+                    f" | Remaining: {remaining}"
+                )
 
                 print(
-                    Colors.cyan(
-                        f"\r  Scanning: {completed}/{len(files)}"
-                        f" | Scanned: {report.scanned_files}"
-                        f" | Remaining: {remaining}"
-                    ),
+                    "\r" + progress.ljust(110),
                     end="",
                     flush=True,
                     file=live,
@@ -1820,12 +1826,13 @@ def main(argv: list[str] | None = None) -> int:
             report.findings.extend(result.findings)
 
             if verbose == 0:
+                completed = (
+                    f"  Scan completed"
+                    f" | Scanned: {report.scanned_files}"
+                    f" | Skipped: {report.skipped_files}"
+                )
                 print(
-                    Colors.green(
-                        f"\r  Scan completed: {len(files)}/{len(files)}"
-                        f" | Scanned: {report.scanned_files}"
-                        f" | Remaining: 0"
-                    ),
+                    "\r" + completed.ljust(110),
                     file=live,
                 )
 
