@@ -493,6 +493,13 @@ _TECHS = (
 def _tech_id(name: str) -> str:
     return name.replace("/", "_").replace("@", "").replace(".", "_")
 
+_NON_SECRET_ENV_SUFFIX = (
+    r"(?:_URL|_URI|_HOST|_PORT|_TIMEOUT|_TTL|_EXPIRY|_INTERVAL|_SIZE"
+    r"|_LIMIT|_COUNT|_LEVEL|_MODE|_TYPE|_NAME|_PATH|_DIR|_ENABLED"
+    r"|_LENGTH|_FORMAT|_VERSION|_ENV|_REGION|_ZONE|_PREFIX|_SUFFIX"
+    r"|_METHOD|_PROTOCOL|_HEADER|_ATTEMPTS|_RETRIES|_DELAY|_BUFFER"
+    r"|_CHUNK|_THRESHOLD|_RATIO|_WEIGHT|_ALGORITHM)"
+)
 
 def build_patterns() -> list[PatternSpec]:
     specs: list[PatternSpec] = []
@@ -574,9 +581,11 @@ def build_patterns() -> list[PatternSpec]:
         ), validator=is_valid_plain_secret))
     add(PatternSpec("credentials", "env_secret",
         re_compile(
-            r"""(?m)^[ \t]*(?:export[ \t]+)?[A-Z0-9_]*"""
+            r"""(?im)^[ \t]*(?:export[ \t]+)?"""
+            r"""(?![A-Za-z0-9_]*""" + _NON_SECRET_ENV_SUFFIX + r"""[ \t]*=)"""
+            r"""[A-Za-z0-9_]*"""
             r"""(?:SECRET|TOKEN|PASSWORD|PASSWD|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|CREDENTIALS?)"""
-            r"""[A-Z0-9_]*[ \t]*=[ \t]*["']?([^\s"'#]{6,256})"""
+            r"""[A-Za-z0-9_]*[ \t]*=[ \t]*["']?([^\s"'#]{6,256})"""
         ), validator=is_valid_env_secret))
     add(PatternSpec("credentials", "jwt_secret",
         re_compile(
@@ -616,7 +625,7 @@ def build_patterns() -> list[PatternSpec]:
         re_compile(r"""(?<!\d)((?:\+?98|0)9\d{9})(?!\d)""")))
     add(PatternSpec("phone_numbers", "international_phone",
         re_compile(
-            r"""(?<![\d+])(\+\d{1,3}[\s\-]?\d{2,4}[\s\-]?\d{3,4}[\s\-]?\d{3,4})(?!\d)"""
+            r"""(?<![\d+])(\+\d{1,3}[ \t\-]?\d{2,4}[ \t\-]?\d{3,4}[ \t\-]?\d{3,4})(?!\d)"""
         )))
 
     # ── ip addresses ──
