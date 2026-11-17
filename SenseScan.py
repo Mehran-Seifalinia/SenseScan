@@ -1354,66 +1354,83 @@ def ordered_categories(by_cat: dict[str, Any]) -> list[str]:
     return known + [c for c in by_cat if c not in CATEGORY_ORDER]
 
 
+
 def render_text(report: ScanReport, verbose_level: int) -> str:
     aggregated = aggregate_findings(report.findings)
     lines: list[str] = []
     ap = lines.append
 
-    ap("=" * 72)
-    ap("  Sensitive Data Scan Report")
-    ap("=" * 72)
-    ap(f"  Path:           {report.base_path}")
-    ap(f"  Started:        {report.started_at}")
-    ap(f"  Duration:       {report.duration_sec:.2f}s")
-    ap(f"  Files scanned:  {report.scanned_files}")
-    ap(f"  Files skipped:  {report.skipped_files}")
-    if report.skipped_large:
-        ap(f"  Warning:        {len(report.skipped_large)} file(s) exceeded "
-           f"--max-size and were not scanned")
-    ap("")
+    total_matches = sum(
+        len(item["occurrences"]) for item in aggregated
+    )
 
-    if verbose_level >= 3:
-        if report.skipped_large:
-            ap("  Skipped (too large):")
-            for path, size in report.skipped_large:
-                ap(f"    - {path} ({fmt_size(size)})")
-            ap("")
-        if report.duplicate_files:
-            ap("  Duplicate files skipped:")
-            for path, orig in report.duplicate_files:
-                ap(f"    - {path}  (same as {orig})")
-            ap("")
+    ap("=" * 88)
+    ap("  SenseScan | Sensitive Data Report")
+    ap("=" * 88)
+    ap(f"  Files scanned:       {report.scanned_files}")
+    ap(f"  Sensitive findings:  {len(aggregated)}")
+    ap(f"  Total matches:       {total_matches}")
 
     if not aggregated:
+        ap("")
         ap("  No sensitive data found.")
+        ap("=" * 88)
+        return "\n".join(lines)
+
+    ap("")
+
+    rows = [
+        (
+            item["category"],
+            item["type"],
+            item["value"],
+            str(len(item["occurrences"])),
+        )
+        for item in aggregated
+    ]
+
+    headers = ("CATEGORY", "TYPE", "SENSITIVE DATA", "MATCHES")
+
+    widths = [
+        max(len(headers[i]), *(len(row[i]) for row in rows))
+        for i in range(len(headers))
+    ]
+
+    def separator() -> str:
+        return "+" + "+".join("-" * (w + 2) for w in widths) + "+"
+
+    def table_row(values: tuple[str, ...]) -> str:
+        return (
+            "| "
+            + " | ".join(
+                values[i].ljust(widths[i])
+                for i in range(len(values))
+            )
+            + " |"
+        )
+
+    ap(separator())
+    ap(table_row(headers))
+    ap(separator())
+
+    for row in rows:
+        ap(table_row(row))
+
+    ap(separator())
+
+    if verbose_level >= 3:
         ap("")
-    else:
-        by_cat: dict[str, list[dict[str, Any]]] = {}
-        for item in aggregated:
-            by_cat.setdefault(item["category"], []).append(item)
-        ap(f"  Unique findings: {len(aggregated)}")
-        ap(f"  Total matches:   {sum(len(i['occurrences']) for i in aggregated)}")
-        ap("")
-        ap("  Summary by category:")
-        for cat in ordered_categories(by_cat):
-            ap(f"    {cat:<26} {len(by_cat[cat])}")
-        ap("")
-        for cat in ordered_categories(by_cat):
-            items = by_cat[cat]
-            ap(f"-- {cat.upper()} ({len(items)} unique) --")
-            for item in items:
-                match_count = len(item["occurrences"])
-                ap(f"  [{item['type']}] {item['value']}")
-                ap(f"      Matches: {match_count}")
-            ap("")
+        ap(f"  Duration:       {report.duration_sec:.2f}s")
+        ap(f"  Files skipped:  {report.skipped_files}")
 
     if verbose_level >= 4 and report.errors:
+        ap("")
         ap("-- ERRORS / DEBUG --")
         for err in report.errors:
             ap(f"  ! {err}")
-        ap("")
 
     return "\n".join(lines)
+
 
 
 def render_json(report: ScanReport) -> str:
@@ -1730,10 +1747,25 @@ def main(argv: list[str] | None = None) -> int:
             print(render_report(report, out_format, verbose))
             return EXIT_NO_FILES
 
-        if verbose >= 1:
-            say(Colors.cyan(f"Scanning {len(files)} file(s) under {base}"))
+        say(Colors.cyan(
+            f"\n  SenseScan | Starting scan of {len(files)} files\n"
+        ))
 
-        for file_path in files:
+        for file_index, file_path in enumerate(files, start=1):
+            if verbose == 0:
+                completed = file_index - 1
+                remaining = len(files) - completed
+
+                print(
+                    Colors.cyan(
+                        f"\r  Scanning: {completed}/{len(files)}"
+                        f" | Scanned: {report.scanned_files}"
+                        f" | Remaining: {remaining}"
+                    ),
+                    end="",
+                    flush=True,
+                    file=live,
+                )
             try:
                 size = file_path.stat().st_size
             except OSError as exc:
@@ -1786,6 +1818,16 @@ def main(argv: list[str] | None = None) -> int:
             report.scanned_files += 1
             report.file_results.append(result)
             report.findings.extend(result.findings)
+
+            if verbose == 0:
+                print(
+                    Colors.green(
+                        f"\r  Scan completed: {len(files)}/{len(files)}"
+                        f" | Scanned: {report.scanned_files}"
+                        f" | Remaining: 0"
+                    ),
+                    file=live,
+                )
 
             if verbose >= 1:
                 say(f"      -> {len(result.findings)} finding(s)")
