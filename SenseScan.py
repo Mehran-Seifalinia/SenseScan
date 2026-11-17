@@ -332,7 +332,8 @@ CODE_REFERENCE_RE = re_compile(
     r"^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$"
     r"|^[a-z]+(?:[A-Z][a-z0-9]+)+$"
 )
-
+_COMMENT_PREFIX_RE = re_compile(r"^[ \t]*(?:#|//|/\*)")
+_COMMENT_FILTER_TYPES = frozenset({"password_unquoted", "username_unquoted"})
 
 def looks_like_code(value: str) -> bool:
     return bool(CODE_REFERENCE_RE.match(value.strip().strip("'\"`")))
@@ -1240,6 +1241,10 @@ def scan_content(
                 line_no, col = fixed_line, 0
             else:
                 line_no, col = line_col(starts, match.start())
+                if spec.type in _COMMENT_FILTER_TYPES:
+                    line_prefix = content[starts[line_no - 1]:match.start()]
+                    if _COMMENT_PREFIX_RE.match(line_prefix):
+                        continue
             findings.append(Finding(
                 category=spec.category,
                 type=spec.type,
