@@ -369,6 +369,7 @@ def is_valid_value(value: str, min_len: int = 3) -> bool:
 CODE_REFERENCE_RE = re_compile(
     r"^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$"
     r"|^[a-z]+(?:[A-Z][a-z0-9]+)+$"
+    r"|^[.,]\s*[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$"
 )
 _COMMENT_PREFIX_RE = re_compile(r"^[ \t]*(?:#|//|/\*)")
 _COMMENT_FILTER_TYPES = frozenset({"password_unquoted", "username_unquoted"})
@@ -679,8 +680,9 @@ def build_patterns() -> list[PatternSpec]:
         ), validator=is_valid_username))
     add(PatternSpec("usernames", "username_unquoted",
         re_compile(
-            r"""(?im)^[ \t]*(?:export[ \t]+)?(?:[\w.\-]*[_.\-])?"""
-            r"""(?:username|user_name|user|login)[ \t]*[:=][ \t]*([^\s"'`#,;(){}\[\]<>]{2,128})"""
+            r"""(?im)^[ \t]*(?:export[ \t]+)?"""
+            r"""(?:[\w\-]*[_-])?"""
+            r"""(?:username|user_name|userid|user_id|user|login)\b[ \t]*[:=][ \t]*([^\s"'`#,;(){}\[\]<>.,]{2,128})"""
         ), validator=is_valid_plain_username))
 
     # ── emails / phones ──
