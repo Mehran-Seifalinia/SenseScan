@@ -312,6 +312,8 @@ def is_valid_value(value: str, min_len: int = 3) -> bool:
     if v.startswith(("${", "{{", "<%", "process.env", "import.meta.env",
                      "os.environ", "getenv(", "%(")):
         return False
+    if any(marker in v for marker in ("${", "{{", "<%")):
+        return False
     low = v.lower()
     if low.startswith(("your_", "example_", "sample_", "dummy_", "test_")):
         return False
@@ -841,8 +843,33 @@ def build_patterns() -> list[PatternSpec]:
         re_compile(r"""sessionStorage\.setItem\s*\(\s*['"`]([^'"`]+)['"`]""")))
     add(PatternSpec("storage", "cookie_set",
         re_compile(
-            r"""(?:document\.cookie\s*=|\.cookie\s*\(\s*['"])([^=;'"`]+)\s*="""
+            r"""(?:document\.cookie\s*=\s*['"`]?|\.cookie\s*\(\s*['"])"""
+            r"""\s*([^=;'"`\s]+)\s*="""
         )))
+    add(PatternSpec("storage", "local_storage_secret",
+        re_compile(
+            r"""localStorage\.setItem\s*\(\s*['"`]"""
+            r"""[A-Za-z0-9_\-]*(?:token|password|passwd|secret|api[_-]?key"""
+            r"""|auth|credential|jwt|session|bearer)[A-Za-z0-9_\-]*"""
+            r"""['"`]\s*,\s*['"`]([^'"`]{6,512})['"`]""",
+            re_IGNORECASE,
+        ), validator=is_valid_secret))
+    add(PatternSpec("storage", "session_storage_secret",
+        re_compile(
+            r"""sessionStorage\.setItem\s*\(\s*['"`]"""
+            r"""[A-Za-z0-9_\-]*(?:token|password|passwd|secret|api[_-]?key"""
+            r"""|auth|credential|jwt|session|bearer)[A-Za-z0-9_\-]*"""
+            r"""['"`]\s*,\s*['"`]([^'"`]{6,512})['"`]""",
+            re_IGNORECASE,
+        ), validator=is_valid_secret))
+    add(PatternSpec("storage", "cookie_secret",
+        re_compile(
+            r"""(?:document\.cookie\s*=\s*['"`]|\.cookie\s*\(\s*['"])"""
+            r"""[A-Za-z0-9_\-]*(?:token|password|passwd|secret|api[_-]?key"""
+            r"""|auth|credential|jwt|session|bearer)[A-Za-z0-9_\-]*"""
+            r"""\s*=\s*([^;'"`]{3,512})""",
+            re_IGNORECASE,
+        ), validator=is_valid_secret))
 
     return specs
 
