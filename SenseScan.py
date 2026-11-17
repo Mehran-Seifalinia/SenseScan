@@ -164,6 +164,10 @@ PLACEHOLDER_VALUES = frozenset({
     "******", "***", "...", "???", "<password>", "<secret>",
     "<token>", "<your-key>", "<api-key>", "n/a", "na", "empty",
     "string", "integer", "boolean", "object", "array",
+    "bool", "float", "bytes", "byte", "bytearray", "dict", "list",
+    "tuple", "frozenset", "long", "short", "double", "char", "date",
+    "number", "bigint", "symbol", "void", "unknown", "never",
+    "uuid", "optional", "union",
 })
 
 PLACEHOLDER_EMAILS = frozenset({
@@ -458,7 +462,7 @@ def is_sensitive_env_name(name: str) -> bool:
 
 # Separator between a key and its value: optional closing quote of the key,
 # then ":", ":=", "=", "==", "===", "!=" or "!==" (JSON, YAML, JS, comparisons).
-_ASSIGN = r"""["'`]?\s*(?::=?|=|[!=]==?)\s*"""
+_ASSIGN = r"""["'`]?\s*(?::=|:|=)\s*"""
 
 _TECHS = (
     "react", "react-dom", "vue", "angular", "svelte", "jquery",
