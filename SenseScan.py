@@ -158,7 +158,8 @@ CATEGORY_ORDER = (
 ALL_CATEGORIES = frozenset(CATEGORY_ORDER)
 HIGH_SEVERITY = frozenset({"credentials", "tokens", "private_keys", "database"})
 
-PRINTABLE_RE = re_compile(rb"[\x20-\x7e\t]{6,}")
+# Match printable Unicode: exclude C0/C1 control chars, include tabs
+PRINTABLE_RE = re_compile(rb"[^\x00-\x1f\x7f-\x9f]{6,}")
 MAX_OFFICE_ENTRY = 64 * 1024 * 1024
 MAX_OFFICE_TOTAL = 256 * 1024 * 1024
 DEFAULT_MAX_SIZE = 50 * 1024 ** 2  # 50 MB
@@ -1084,7 +1085,7 @@ def read_text(path: Path) -> str:
 
 
 def extract_printable_strings(data: bytes) -> str:
-    return "\n".join(m.decode("ascii") for m in PRINTABLE_RE.findall(data))
+    return "\n".join(m.decode("utf-8", errors="ignore") for m in PRINTABLE_RE.findall(data))
 
 
 def is_sensitive_meta_key(key: str) -> bool:
