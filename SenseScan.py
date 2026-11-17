@@ -125,6 +125,7 @@ HIGH_SEVERITY = frozenset({"credentials", "tokens", "private_keys", "database"})
 PRINTABLE_RE = re_compile(rb"[\x20-\x7e\t]{6,}")
 MAX_OFFICE_ENTRY = 64 * 1024 * 1024
 MAX_OFFICE_TOTAL = 256 * 1024 * 1024
+DEFAULT_MAX_SIZE = 50 * 1024 ** 2  # 50 MB
 
 # Metadata keys (lowercased) that are reported as findings on their own.
 SENSITIVE_META_KEYS = frozenset({
@@ -1758,8 +1759,8 @@ def parse_args(argv: list[str]) -> Namespace:
                         help="Scan all file types.")
     parser.add_argument("--ext", default=None,
                         help="Comma-separated extensions, e.g. js,ts,py,json.")
-    parser.add_argument("--max-size", type=parse_size, default=parse_size("50MB"),
-                        help="Max file size (default: 50MB).")
+    parser.add_argument("--max-size", type=parse_size, default=DEFAULT_MAX_SIZE,
+                        help=f"Max file size (default: {fmt_size(DEFAULT_MAX_SIZE)}).")
     parser.add_argument("--exclude", default=None,
                         help="Comma-separated categories to exclude.")
     parser.add_argument("--exclude-pattern", default=None,
