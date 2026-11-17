@@ -1019,11 +1019,15 @@ def parse_comma_list(raw: str | None) -> list[str]:
 
 
 def file_ext(path: Path) -> str:
-    # Dotfiles such as ".env" and ".env.local" have no suffix in pathlib.
     name = path.name.lower()
-    if name.startswith(".env"):
+    # Handle multi-part extensions like .env.local, .env.production, .gitignore
+    if name.startswith(".env."):
         return ".env"
-    return path.suffix.lower() or (name if name.startswith(".") else "")
+    if name.startswith("."):
+        # For dotfiles, return the full suffix including all parts after first dot
+        # e.g., ".env.local" -> ".env.local", ".gitignore" -> ".gitignore"
+        return name
+    return path.suffix.lower()
 
 
 def detect_kind(path: Path) -> str:
