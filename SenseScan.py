@@ -376,6 +376,28 @@ def is_basic_auth(value: str) -> bool:
     return b":" in raw
 
 
+def is_valid_token(value: str) -> bool:
+    v = value.strip().strip("'\"`")
+    if not v or len(v) < 8:
+        return False
+    low = v.lower()
+    if low.startswith(("your_", "your-")) or any(
+        m in low for m in ("example", "sample", "placeholder", "dummy", "fake")
+    ):
+        return False
+    alnum = [c for c in v if c.isalnum()]
+    if not alnum:
+        return False
+    counts: dict[str, int] = {}
+    for c in alnum:
+        counts[c] = counts.get(c, 0) + 1
+    return max(counts.values()) / len(alnum) <= 0.6
+
+
+def is_valid_secret_token(value: str) -> bool:
+    return is_valid_secret(value) and is_valid_token(value)
+
+
 def is_valid_email(value: str) -> bool:
     v = value.strip().lower()
     if v in PLACEHOLDER_EMAILS:
@@ -510,57 +532,62 @@ def build_patterns() -> list[PatternSpec]:
 
     # ── tokens ──
     add(PatternSpec("tokens", "aws_access_key",
-        re_compile(r"\b((?:AKIA|ASIA)[0-9A-Z]{16})\b")))
+        re_compile(r"\b((?:AKIA|ASIA)[0-9A-Z]{16})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "aws_secret_key",
-        re_compile(r"""(?i)aws_?secret_?access_?key["'`]?\s*[:=]\s*["'`]?([A-Za-z0-9/+=]{40})(?![A-Za-z0-9/+=])""")))
+        re_compile(r"""(?i)aws_?secret_?access_?key["'`]?\s*[:=]\s*["'`]?([A-Za-z0-9/+=]{40})(?![A-Za-z0-9/+=])"""),
+        validator=is_valid_token))
     add(PatternSpec("tokens", "aws_session_token",
-        re_compile(r"""(?i)aws_?session_?token["'`]?\s*[:=]\s*["'`]?([A-Za-z0-9/+=]{100,})""")))
+        re_compile(r"""(?i)aws_?session_?token["'`]?\s*[:=]\s*["'`]?([A-Za-z0-9/+=]{100,})"""),
+        validator=is_valid_token))
     add(PatternSpec("tokens", "gcp_api_key",
-        re_compile(r"\b(AIza[0-9A-Za-z_\-]{35})\b")))
+        re_compile(r"\b(AIza[0-9A-Za-z_\-]{35})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "gcp_service_account",
         re_compile(r'("type"\s*:\s*"service_account")')))
     add(PatternSpec("tokens", "github_token",
-        re_compile(r"\b(gh[pousr]_[A-Za-z0-9]{36,251})\b")))
+        re_compile(r"\b(gh[pousr]_[A-Za-z0-9]{36,251})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "gitlab_token",
-        re_compile(r"\b(glpat-[A-Za-z0-9_\-]{20,})")))
+        re_compile(r"\b(glpat-[A-Za-z0-9_\-]{20,})"), validator=is_valid_token))
     add(PatternSpec("tokens", "slack_token",
-        re_compile(r"\b(xox[baprs]-[A-Za-z0-9\-]{10,})")))
+        re_compile(r"\b(xox[baprs]-[A-Za-z0-9\-]{10,})"), validator=is_valid_token))
     add(PatternSpec("tokens", "slack_webhook",
-        re_compile(r"(https://hooks\.slack\.com/services/[A-Za-z0-9/]+)")))
+        re_compile(r"(https://hooks\.slack\.com/services/[A-Za-z0-9/]+)"), validator=is_valid_token))
     add(PatternSpec("tokens", "stripe_key",
-        re_compile(r"\b((?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{20,})")))
+        re_compile(r"\b((?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{20,})"), validator=is_valid_token))
     add(PatternSpec("tokens", "sendgrid_key",
-        re_compile(r"\b(SG\.[A-Za-z0-9_\-]{22,}\.[A-Za-z0-9_\-]{22,})")))
+        re_compile(r"\b(SG\.[A-Za-z0-9_\-]{22,}\.[A-Za-z0-9_\-]{22,})"), validator=is_valid_token))
     add(PatternSpec("tokens", "twilio_key",
-        re_compile(r"\b(SK[0-9a-fA-F]{32})\b")))
+        re_compile(r"\b(SK[0-9a-fA-F]{32})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "mailgun_key",
-        re_compile(r"\b(key-[0-9a-f]{32})\b")))
+        re_compile(r"\b(key-[0-9a-f]{32})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "npm_token",
-        re_compile(r"\b(npm_[A-Za-z0-9]{36})\b")))
+        re_compile(r"\b(npm_[A-Za-z0-9]{36})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "pypi_token",
-        re_compile(r"\b(pypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{50,})\b")))
+        re_compile(r"\b(pypi-AgEIcHlwaS5vcmc[A-Za-z0-9_\-]{50,})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "digitalocean_token",
-        re_compile(r"\b(dop_v1_[a-f0-9]{64})\b")))
+        re_compile(r"\b(dop_v1_[a-f0-9]{64})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "heroku_key",
-        re_compile(r"""(?i)heroku\w*key["'`]?\s*[:=]\s*["'`]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})""")))
+        re_compile(r"""(?i)heroku\w*key["'`]?\s*[:=]\s*["'`]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"""),
+        validator=is_valid_token))
     add(PatternSpec("tokens", "jwt",
-        re_compile(r"\b(eyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,})\b")))
+        re_compile(r"\b(eyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,})\b"),
+        validator=is_valid_token))
     add(PatternSpec("tokens", "bearer_token",
-        re_compile(r"""(?i)\bBearer\s+([A-Za-z0-9\-._~+/]{20,}=*)""")))
+        re_compile(r"""(?i)\bBearer\s+([A-Za-z0-9\-._~+/]{20,}=*)"""), validator=is_valid_token))
     add(PatternSpec("tokens", "basic_auth_header",
         re_compile(r"""(?i)\bBasic\s+([A-Za-z0-9+/]{16,}={0,2})"""),
         validator=is_basic_auth))
     add(PatternSpec("tokens", "discord_webhook",
-        re_compile(r"(https://discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9_\-]+)")))
+        re_compile(r"(https://discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9_\-]+)"),
+        validator=is_valid_token))
     add(PatternSpec("tokens", "telegram_bot_token",
-        re_compile(r"\b(\d{8,10}:[A-Za-z0-9_\-]{35})\b")))
+        re_compile(r"\b(\d{8,10}:[A-Za-z0-9_\-]{35})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "generic_api_key",
         re_compile(
             r"(?i)(?:api[_-]?key|apikey|access[_-]?key|auth[_-]?token|"
             r"access[_-]?token|refresh[_-]?token|client[_-]?secret|"
             r"app[_-]?secret|auth[_-]?secret|secret[_-]?token)"
             + _ASSIGN + r"""["'`]([A-Za-z0-9_\-./+=]{12,512})["'`]"""
-        ), validator=is_valid_secret))
+        ), validator=is_valid_secret_token))
 
     # ── private keys ──
     add(PatternSpec("private_keys", "private_key_header",
