@@ -572,7 +572,7 @@ def build_patterns() -> list[PatternSpec]:
     add(PatternSpec("tokens", "aws_access_key",
         re_compile(r"\b((?:AKIA|ASIA)[0-9A-Z]{16})\b"), validator=is_valid_token))
     add(PatternSpec("tokens", "aws_secret_key",
-        re_compile(r"""(?i)aws_?secret_?access_?key["'`]?\s*[:=]\s*["'`]?([A-Za-z0-9/+=]{40})(?![A-Za-z0-9/+=])"""),
+        re_compile(r"""(?i)aws_?secret_?access_?key["'`]?\s*[:=]\s*["'`]?([A-Za-z0-9/+=]{40,43})(?![A-Za-z0-9/+=])"""),
         validator=is_valid_token))
     add(PatternSpec("tokens", "aws_session_token",
         re_compile(r"""(?i)aws_?session_?token["'`]?\s*[:=]\s*["'`]?([A-Za-z0-9/+=]{100,})"""),
