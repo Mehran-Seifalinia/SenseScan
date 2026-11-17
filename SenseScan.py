@@ -757,12 +757,18 @@ def build_patterns() -> list[PatternSpec]:
             ),
             capture_groups=(1, 2, 3, 4, 5, 6, 7),
         ))
-    # Version banners inside bundled files, e.g. "/*! jQuery v3.6.0 | ..."
-    add(PatternSpec("technology", "tech.banner",
+    # Version banners in JavaScript bundles and license comments.
+    add(PatternSpec(
+        "technology",
+        "tech.banner",
         re_compile(
-            r"""/\*[*!]?\s*@?(?:license\s+|version\s+)?"""
-            r"""([A-Za-z][\w.\-]{1,30}\s+v?\d+\.\d+(?:\.\d+)*)"""
-        )))
+            r"""(?is)/\*{1,2}[!]?"""
+            r"""(?:(?!\*/)[\s\S]){0,1200}?"""
+            r"""\*?\s*(?:@name\s+(@?[\w][\w@./-]*\s+@version\s+[\d][\w.+-]*)"""
+            r"""|(?:@license\s+)?(@?[\w][\w@./-]*\s+v?[\d][\w.+-]*))"""
+        ),
+        capture_groups=(1, 2),
+    ))
     add(PatternSpec("technology", "tech.generator_meta",
         re_compile(
             r"""(?i)name=["']generator["']\s+content=["']([^"']{2,80})["']"""
@@ -1393,6 +1399,12 @@ def render_text(report: ScanReport, verbose_level: int) -> str:
     }
 
     other_categories: dict[str, list[str]] = {}
+    technologies: list[str] = []
+
+    tech_names = {
+        _tech_id(name): name
+        for name in _TECHS
+    }
 
     for item in aggregated:
         category = item["category"]
@@ -1403,6 +1415,18 @@ def render_text(report: ScanReport, verbose_level: int) -> str:
 
         elif category == "credentials":
             credentials["Passwords"].append(value)
+
+        elif category == "technology":
+            tech_type = item["type"]
+
+            if tech_type.startswith("tech.") and tech_type != "tech.banner" and tech_type != "tech.generator_meta":
+                tech_name = tech_names.get(
+                    tech_type.removeprefix("tech."),
+                    tech_type.removeprefix("tech.")
+                )
+                technologies.append(f"{tech_name}: {value}")
+            else:
+                technologies.append(value)
 
         else:
             other_categories.setdefault(category, []).append(value)
@@ -1423,6 +1447,15 @@ def render_text(report: ScanReport, verbose_level: int) -> str:
                 ap(f"    - {value}")
 
             ap("")
+
+    # Render technologies in one section.
+    if technologies:
+        ap("Technologies")
+
+        for technology in sorted(set(technologies), key=str.lower):
+            ap(f"  - {technology}")
+
+        ap("")
 
     # Render all remaining categories.
     for category in CATEGORY_ORDER:
