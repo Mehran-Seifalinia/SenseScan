@@ -1965,6 +1965,10 @@ def main(argv: list[str] | None = None) -> int:
     exit_code = EXIT_SUCCESS
     tracker = DuplicateTracker(args.dedupe)
     warned: set[str] = set()
+    # Live progress is only meaningful on a terminal; when the output
+    # stream is redirected or piped we skip it to avoid writing one
+    # line per scanned file into logs.
+    show_progress = verbose == 0 and getattr(live, "isatty", lambda: False)()
 
     try:
         files = collect_files(
@@ -1992,22 +1996,14 @@ def main(argv: list[str] | None = None) -> int:
         ))
 
         for file_index, file_path in enumerate(files, start=1):
-            if verbose == 0:
-                processed = file_index - 1
-                remaining = len(files) - processed
-
-                progress = (
-                    f"  Progress: {processed}/{len(files)}"
+            if show_progress:
+                line = (
+                    f"  Progress: {file_index - 1}/{len(files)}"
                     f" | Scanned: {report.scanned_files}"
-                    f" | Remaining: {remaining}"
+                    f" | Skipped: {report.skipped_files}"
                 )
+                print(f"\r{line.ljust(80)}", end="", flush=True, file=live)
 
-                print(
-                    "\r" + progress.ljust(110),
-                    end="",
-                    flush=True,
-                    file=live,
-                )
             try:
                 size = file_path.stat().st_size
             except OSError as exc:
@@ -2061,17 +2057,6 @@ def main(argv: list[str] | None = None) -> int:
             report.file_results.append(result)
             report.findings.extend(result.findings)
 
-            if verbose == 0:
-                completed = (
-                    f"  Scan completed"
-                    f" | Scanned: {report.scanned_files}"
-                    f" | Skipped: {report.skipped_files}"
-                )
-                print(
-                    "\r" + completed.ljust(110),
-                    file=live,
-                )
-
             if verbose >= 1:
                 say(f"      -> {len(result.findings)} finding(s)")
                 for f in result.findings:
@@ -2101,6 +2086,14 @@ def main(argv: list[str] | None = None) -> int:
         if verbose >= 4:
             print(traceback_format_exc(), file=sys_stderr)
         exit_code = EXIT_ERROR
+
+    if show_progress:
+        label = "Scan completed" if exit_code == EXIT_SUCCESS else "Scan stopped"
+        line = (
+            f"  {label} | Scanned: {report.scanned_files}"
+            f" | Skipped: {report.skipped_files}"
+        )
+        print(f"\r{line.ljust(80)}", file=live)
 
     report.duration_sec = time_perf_counter() - start
     rendered = render_report(report, out_format, verbose)
