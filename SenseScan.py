@@ -1146,9 +1146,42 @@ _INFO_SKIP = frozenset({
 })
 
 
-def _meta_text(value: Any) -> str:
+def _fmt_number(value: Any) -> str | None:
+    """Render int/float/IFDRational as decimal; None for str/bool/others."""
+    if isinstance(value, (bool, str)):
+        return None
+    try:
+        return f"{float(value):g}"
+    except (TypeError, ValueError):
+        return None
+
+
+def _meta_text(value: Any, *, key: str = "") -> str:
     if isinstance(value, bytes):
-        value = value.decode("utf-8", errors="ignore")
+        return value.decode("utf-8", errors="ignore").replace("\x00", "").strip()[:4096]
+
+    # GPS coordinates: (deg, min, sec) rationals -> DMS string.
+    if (key.endswith(("Latitude", "Longitude"))
+            and isinstance(value, (tuple, list)) and len(value) == 3):
+        try:
+            deg, minutes, seconds = (float(x) for x in value)
+            return f"{deg:.0f}°{minutes:.0f}'{seconds:.2f}\""
+        except (TypeError, ValueError):
+            pass
+
+    if isinstance(value, (tuple, list)):
+        parts = []
+        for item in value:
+            if isinstance(item, bytes):
+                parts.append(item.decode("utf-8", errors="ignore"))
+                continue
+            num = _fmt_number(item)
+            parts.append(num if num is not None else str(item))
+        return ", ".join(parts).replace("\x00", "").strip()[:4096]
+
+    num = _fmt_number(value)
+    if num is not None:
+        return num
     return str(value).replace("\x00", "").strip()[:4096]
 
 
@@ -1162,7 +1195,7 @@ def extract_image_exif(path: Path) -> dict[str, str]:
         for tag_id, value in exif.items():
             name = _PILExifTags.TAGS.get(tag_id, str(tag_id))
             if name not in _META_SKIP:
-                result[name] = _meta_text(value)
+                result[name] = _meta_text(value, key=name)
         for ifd_id, table, prefix in (
             (_EXIF_IFD, _PILExifTags.TAGS, ""),
             (_GPS_INFO_IFD, _PILExifTags.GPSTAGS, "GPS."),
@@ -1174,11 +1207,12 @@ def extract_image_exif(path: Path) -> dict[str, str]:
             for tag_id, value in ifd.items():
                 name = table.get(tag_id, str(tag_id))
                 if name not in _META_SKIP:
-                    result[prefix + name] = _meta_text(value)
+                    full_key = prefix + name
+                    result[full_key] = _meta_text(value, key=full_key)
         for key, value in img.info.items():
             if key in _INFO_SKIP or not isinstance(value, (str, bytes)):
                 continue
-            result[str(key)] = _meta_text(value)
+            result[str(key)] = _meta_text(value, key=str(key))
     return result
 
 
