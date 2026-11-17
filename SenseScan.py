@@ -624,7 +624,7 @@ def build_patterns() -> list[PatternSpec]:
             r"(?i)(?:api[_-]?key|apikey|access[_-]?key|auth[_-]?token|"
             r"access[_-]?token|refresh[_-]?token|client[_-]?secret|"
             r"app[_-]?secret|auth[_-]?secret|secret[_-]?token)"
-            + _ASSIGN + r"""["'`]([A-Za-z0-9_\-./+=]{12,512})["'`]"""
+            + _ASSIGN + r"""["'`]([A-Za-z0-9_\-./+=]{8,512})["'`]"""
         ), validator=is_valid_secret_token))
 
     # ── private keys ──
