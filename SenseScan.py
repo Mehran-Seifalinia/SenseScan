@@ -339,7 +339,9 @@ def is_valid_secret(value: str) -> bool:
         return False
     if any(c.isspace() for c in v):
         return False
-    return not v.startswith(("/", "./", "../", "http://", "https://"))
+    if v.startswith(("/", "./", "../", "http://", "https://")):
+        return False
+    return not looks_like_code(v)
 
 
 def is_valid_plain_secret(value: str) -> bool:
@@ -353,7 +355,11 @@ def is_valid_plain_secret(value: str) -> bool:
 
 def is_valid_env_secret(value: str) -> bool:
     v = value.strip()
-    return is_valid_value(v) and not v.startswith(("$", "@", "*", "&"))
+    if not is_valid_value(v):
+        return False
+    if v.startswith(("$", "@", "*", "&")):
+        return False
+    return not looks_like_code(v)
 
 
 def is_basic_auth(value: str) -> bool:
@@ -397,7 +403,9 @@ def is_valid_username(value: str) -> bool:
         return False
     if v.upper() in ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"):
         return False
-    return not (v.startswith(("/", ".")) or v.lower() in USERNAME_NOISE)
+    if v.startswith(("/", ".")) or v.lower() in USERNAME_NOISE:
+        return False
+    return not looks_like_code(v)
 
 
 def is_valid_plain_username(value: str) -> bool:
