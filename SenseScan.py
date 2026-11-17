@@ -258,6 +258,9 @@ class PatternSpec:
     capture_groups: tuple[int, ...] = (1,)
     # When set, the HTTP method found in this group is prefixed to the value.
     method_group: int = 0
+    # Fallback method when method_group is set but did not match
+    # (e.g. fetch() without an explicit method implies GET).
+    default_method: str = ""
 
 
 @dataclass(slots=True)
@@ -685,9 +688,9 @@ def build_patterns() -> list[PatternSpec]:
     # ── api endpoints with a known method ──
     add(PatternSpec("api_endpoints_complete", "endpoint_fetch",
         re_compile(
-            r"""fetch\s*\(\s*[`'"]([^`'"]+)[`'"]"""
+            r"""\bfetch\s*\(\s*[`'"]([^`'"]+)[`'"]"""
             r"""(?:\s*,\s*\{[^}]*?method\s*:\s*[`'"](\w+)[`'"])?"""
-        ), capture_groups=(1,), method_group=2))
+        ), capture_groups=(1,), method_group=2, default_method="GET"))
     add(PatternSpec("api_endpoints_complete", "endpoint_axios_method",
         re_compile(
             r"""axios\s*\.\s*(get|post|put|delete|patch|head|options)\s*\(\s*"""
@@ -695,8 +698,9 @@ def build_patterns() -> list[PatternSpec]:
         ), capture_groups=(2,), method_group=1))
     add(PatternSpec("api_endpoints_complete", "endpoint_axios_object",
         re_compile(
-            r"""axios\s*\(\s*\{[^}]*?url\s*:\s*[`'"]([^`'"]+)[`'"][^}]*?"""
-            r"""method\s*:\s*[`'"](\w+)[`'"]"""
+            r"""axios\s*\(\s*\{"""
+            r"""(?=[^}]*?url\s*:\s*[`'"]([^`'"]+)[`'"])"""
+            r"""(?=[^}]*?method\s*:\s*[`'"](\w+)[`'"])"""
         ), capture_groups=(1,), method_group=2))
     add(PatternSpec("api_endpoints_complete", "endpoint_jquery_method",
         re_compile(
@@ -1140,6 +1144,7 @@ def extract_match_value(match: re_Match[str], spec: PatternSpec) -> str | None:
             method = match.group(spec.method_group)
         except (IndexError, ValueError):
             method = None
+        method = method or spec.default_method
         if method:
             value = f"{method.upper()} {value}"
     return value or None
