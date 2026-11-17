@@ -454,19 +454,18 @@ def is_valid_url(value: str) -> bool:
     host = authority.rsplit("@", 1)[-1].split(":")[0].lower()
     if not host or host.startswith(".") or host.endswith("."):
         return False
-    if host in ("localhost", "127.0.0.1", "0.0.0.0") or "." not in host:
-        return False
     return not any(host == n or host.endswith("." + n) for n in NOISE_URL_HOSTS)
 
 
 def is_valid_ip(value: str) -> bool:
     v = value.strip()
     try:
-        addr = ip_address(v)
+        ip_address(v)
     except ValueError:
         return False
-    if addr.is_unspecified or addr.is_loopback or addr.is_multicast:
-        return False
+    # Only the IPv4 broadcast address is rejected. Loopback, unspecified,
+    # private and IPv6 loopback addresses are kept: they frequently reveal
+    # internal services, dev servers and misconfigured backends.
     return v != "255.255.255.255"
 
 
