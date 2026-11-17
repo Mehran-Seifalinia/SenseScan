@@ -106,7 +106,33 @@ IMAGE_EXTENSIONS = frozenset({
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff",
     ".heic", ".heif", ".ico",
 })
-IMAGE_MAGIC = (b"\x89PNG", b"\xff\xd8\xff", b"GIF8", b"II*\x00", b"MM\x00*")
+IMAGE_MAGIC = (
+    b"\x89PNG",           # PNG
+    b"\xff\xd8\xff",      # JPEG
+    b"GIF8",              # GIF87a / GIF89a
+    b"II*\x00",           # TIFF little-endian
+    b"MM\x00*",           # TIFF big-endian
+    b"\x00\x00\x01\x00",  # ICO
+    b"\x00\x00\x02\x00",  # CUR
+)
+
+_WEBP_RIFF = b"RIFF"
+_WEBP_BRAND = b"WEBP"
+_HEIF_BOX = b"ftyp"
+_HEIF_BRANDS = frozenset({
+    b"heic", b"heix", b"hevc", b"hevx",
+    b"heim", b"heis", b"hevm", b"hevs",
+    b"mif1", b"msf1",
+})
+_BMP_DIB_SIZES = frozenset({12, 40, 52, 56, 64, 108, 124})
+
+
+def _is_bmp(head: bytes) -> bool:
+    # A bare "BM" prefix would false-positive on text files such as
+    # "BMW ..." — require a valid DIB header size at offset 14.
+    if len(head) < 18 or head[:2] != b"BM":
+        return False
+    return int.from_bytes(head[14:18], "little") in _BMP_DIB_SIZES
 
 PDF_EXTENSIONS = frozenset({".pdf"})
 OFFICE_EXTENSIONS = frozenset({".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp"})
@@ -1012,6 +1038,12 @@ def detect_kind(path: Path) -> str:
     if head.startswith(b"%PDF-"):
         return "pdf"
     if head.startswith(IMAGE_MAGIC):
+        return "image"
+    if _is_bmp(head):
+        return "image"
+    if head[:4] == _WEBP_RIFF and head[8:12] == _WEBP_BRAND:
+        return "image"
+    if head[4:8] == _HEIF_BOX and head[8:12] in _HEIF_BRANDS:
         return "image"
     if head.startswith((b"\xef\xbb\xbf", b"\xff\xfe", b"\xfe\xff")):
         return "text"
