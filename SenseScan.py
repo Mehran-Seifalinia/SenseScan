@@ -644,7 +644,7 @@ def build_patterns() -> list[PatternSpec]:
         ), validator=is_valid_secret))
     add(PatternSpec("credentials", "password_unquoted",
         re_compile(
-            r"(?i)(?:password|passwd)" + _ASSIGN
+            r"(?i)(?:password|passwd|secret[_-]?key|private[_-]?secret)" + _ASSIGN
             + r"""([^\s,'"`}{;()<>\[\]=][^\s,'"`}{;()<>\[\]]{3,255})"""
         ), validator=is_valid_plain_secret))
     add(PatternSpec("credentials", "env_secret",
