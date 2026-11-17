@@ -1357,6 +1357,7 @@ def ordered_categories(by_cat: dict[str, Any]) -> list[str]:
 
 
 
+
 def render_text(report: ScanReport, verbose_level: int) -> str:
     aggregated = aggregate_findings(report.findings)
     lines: list[str] = []
@@ -1369,7 +1370,7 @@ def render_text(report: ScanReport, verbose_level: int) -> str:
     ap("=" * 72)
     ap("  SenseScan | Sensitive Data Report")
     ap("=" * 72)
-    ap(f"  Files scanned       : {report.scanned_files}")
+    ap(f"  Files scanned      : {report.scanned_files}")
     ap(f"  Unique findings    : {len(aggregated)}")
     ap(f"  Total matches      : {total_matches}")
 
@@ -1378,61 +1379,76 @@ def render_text(report: ScanReport, verbose_level: int) -> str:
         ap(f"  Scan duration      : {report.duration_sec:.2f}s")
 
     ap("=" * 72)
+    ap("")
 
     if not aggregated:
-        ap("")
         ap("  No sensitive data found.")
         ap("=" * 72)
         return "\n".join(lines)
 
-    by_cat: dict[str, list[dict[str, Any]]] = {}
+    # Credentials combines usernames and password findings.
+    credentials = {
+        "Usernames": [],
+        "Passwords": [],
+    }
+
+    other_categories: dict[str, list[str]] = {}
 
     for item in aggregated:
-        by_cat.setdefault(item["category"], []).append(item)
+        category = item["category"]
+        value = item["value"]
 
-    ap("")
-    ap("  FINDINGS")
-    ap("-" * 72)
+        if category == "usernames":
+            credentials["Usernames"].append(value)
 
-    for cat in ordered_categories(by_cat):
-        items = by_cat[cat]
+        elif category == "credentials":
+            credentials["Passwords"].append(value)
 
-        ap("")
-        ap(f"  [{cat.upper()}]  {len(items)} finding(s)")
-        ap("  " + "-" * 40)
+        else:
+            other_categories.setdefault(category, []).append(value)
 
-        for item in items:
-            match_count = len(item["occurrences"])
-            match_label = "match" if match_count == 1 else "matches"
+    # Render credentials first.
+    if any(credentials.values()):
+        ap("Credentials")
 
-            ap(f"    Type    : {item['type']}")
-            ap(f"    Matches : {match_count} {match_label}")
-            ap("    Value   :")
+        for label in ("Usernames", "Passwords"):
+            values = credentials[label]
 
-            wrapped = text_wrap(
-                item["value"],
-                width=88,
-                subsequent_indent="              ",
-                break_long_words=True,
-                break_on_hyphens=False,
-            )
+            if not values:
+                continue
 
-            for part in wrapped:
-                ap(f"              {part}")
+            ap(f"  {label}:")
+
+            for value in values:
+                ap(f"    - {value}")
 
             ap("")
 
-    if verbose_level >= 4 and report.errors:
-        ap("")
-        ap("  ERRORS / DEBUG")
-        ap("-" * 72)
+    # Render all remaining categories.
+    for category in CATEGORY_ORDER:
+        if category not in other_categories:
+            continue
 
-        for err in report.errors:
-            ap(f"  ! {err}")
+        values = other_categories[category]
+
+        title = category.replace("_", " ").title()
+        ap(title)
+
+        for value in values:
+            ap(f"  - {value}")
+
+        ap("")
+
+    if verbose_level >= 4 and report.errors:
+        ap("Errors")
+        for error in report.errors:
+            ap(f"  - {error}")
+        ap("")
 
     ap("=" * 72)
 
     return "\n".join(lines)
+
 
 
 
