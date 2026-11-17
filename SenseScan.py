@@ -1402,11 +1402,9 @@ def render_text(report: ScanReport, verbose_level: int) -> str:
             items = by_cat[cat]
             ap(f"-- {cat.upper()} ({len(items)} unique) --")
             for item in items:
+                match_count = len(item["occurrences"])
                 ap(f"  [{item['type']}] {item['value']}")
-                for occ in item["occurrences"][:5]:
-                    ap(f"      @ {format_location(occ)}")
-                if len(item["occurrences"]) > 5:
-                    ap(f"      ... and {len(item['occurrences']) - 5} more")
+                ap(f"      Matches: {match_count}")
             ap("")
 
     if verbose_level >= 4 and report.errors:
@@ -1422,6 +1420,17 @@ def render_json(report: ScanReport) -> str:
     aggregated = aggregate_findings(report.findings)
     by_cat: dict[str, int] = {}
     by_type: dict[str, int] = {}
+    safe_findings = [
+            {
+                "category": item["category"],
+                "type": item["type"],
+                "value": item["value"],
+                "sources": item["sources"],
+                "occurrence_count": len(item["occurrences"]),
+            }
+            for item in aggregated
+        ]
+    
     for item in aggregated:
         by_cat[item["category"]] = by_cat.get(item["category"], 0) + 1
         by_type[item["type"]] = by_type.get(item["type"], 0) + 1
@@ -1442,7 +1451,7 @@ def render_json(report: ScanReport) -> str:
         },
         "options": report.options,
         "summary": {"by_category": by_cat, "by_type": by_type},
-        "findings": aggregated,
+        "findings": safe_findings,
         "skipped": {
             "large_files": [{"path": p, "size": s} for p, s in report.skipped_large],
             "duplicate_files": [{"path": p, "original": o}
@@ -1517,15 +1526,13 @@ def render_html(report: ScanReport) -> str:
                 f'<details class="cat" open><summary>{title}'
                 f'<span class="count">{len(items)}</span></summary><table>')
             for item in items:
-                shown = item["occurrences"][:5]
-                locs = "<br>".join(esc(format_location(o)) for o in shown)
-                extra = len(item["occurrences"]) - len(shown)
-                if extra > 0:
-                    locs += f"<br>+{extra} more"
+                match_count = len(item["occurrences"])
                 out.append(
-                    f'<tr class="row"><td><span class="tag {sev}">{esc(item["type"])}</span></td>'
+                    f'<tr class="row">'
+                    f'<td><span class="tag {sev}">{esc(item["type"])}</span></td>'
                     f'<td><code>{esc(item["value"])}</code></td>'
-                    f'<td class="loc">{locs}</td></tr>')
+                    f'<td>{match_count} matches</td>'
+                    f'</tr>')
             out.append("</table></details>")
         out.append(HTML_SCRIPT)
     out.append("</div></body></html>")
